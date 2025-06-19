@@ -1,5 +1,5 @@
 # Start from the PyTorch base image with CUDA and CUDNN support
-FROM pytorch/pytorch:2.7.1-cuda11.8-cudnn9-runtime
+FROM pytorch/pytorch:2.2.2-cuda11.8-cudnn8-runtime
 
 # --- ENVIRONMENT VARIABLES ---
 # Set environment variables for non-interactive installs, pip, and the app root
@@ -61,14 +61,6 @@ RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/Comfy
     git clone https://github.com/Fannovel16/comfyui_controlnet_aux.git custom_nodes/comfyui_controlnet_aux && \
     pip install --no-cache-dir -r custom_nodes/comfyui_controlnet_aux/requirements.txt
 
-
-# --- FINAL SETUP & CONFIGURATION ---
-# Copy entrypoint scripts from the local context into the image
-COPY ./scripts /scripts
-# Ensure scripts are executable and have correct line endings
-RUN sed -i 's/\r$//' /scripts/docker-entrypoint.sh && \
-    chmod +x /scripts/*
-
 # Pull latest changes for the repositories and apply environment-specific fixes
 # Note: `git pull` makes the build less deterministic but gets the latest updates
 RUN git checkout . && git pull && \
@@ -79,13 +71,11 @@ RUN git checkout . && git pull && \
     # Patch for xformers version check
     sed -i 's/if int((xformers\.__version__).split(".")\[2\]) >= 28:/if int((xformers.__version__).split(".")\[2\].split("+"\)\[0\]) >= 28:/g' /app/comfy/ldm/pixart/blocks.py
 
-RUN sed -i '1i #!/usr/bin/env python3' /app/main.py & chmod +x /app/main.py
-
-# Set the entrypoint to our custom script
-ENTRYPOINT ["/scripts/docker-entrypoint.sh"]
+RUN sed -i '1i #!/usr/bin/env python3' /app/main.py && chmod +x /app/main.py
 
 # Set default command-line arguments (can be overridden)
 ENV CLI_ARGS="--listen 0.0.0.0"
 
+ENV PATH=/app/:$PATH
 # The command to run the application
 CMD python3 main.py ${CLI_ARGS}
