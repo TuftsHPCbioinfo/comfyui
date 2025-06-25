@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         triton \
         opencv-python \
         spandrel \
-        kornia && \
+        kornia volcengine && \
     pip install --no-cache-dir -v \
         xformers==0.0.30 --no-deps --index-url https://download.pytorch.org/whl/cu118
 
