@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
 
 # --- PROJECT & PYTHON DEPENDENCIES ---
 # Clone all repositories first
-RUN git clone --branch v0.3.49 --depth 1 --single-branch https://github.com/comfyanonymous/ComfyUI.git . && \
+RUN git clone --branch v0.3.50 --depth 1 --single-branch https://github.com/comfyanonymous/ComfyUI.git . && \
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager && \
     git clone https://github.com/twri/sdxl_prompt_styler.git custom_nodes/sdxl_prompt_styler && \
     git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git custom_nodes/ComfyUI_IPAdapter_plus && \
