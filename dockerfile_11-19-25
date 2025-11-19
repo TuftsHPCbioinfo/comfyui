@@ -1,0 +1,122 @@
+# ==============================================================================
+# ComfyUI Docker Image with Package Baseline Enforcement
+# ==============================================================================
+# Builds ComfyUI with CUDA 12.9 support and enforces package version stability
+# by capturing a baseline after core installation and restoring it on container
+# start/stop to prevent custom nodes from polluting the dependency tree.
+# ==============================================================================
+
+FROM pytorch/pytorch:2.8.0-cuda12.9-cudnn9-devel
+
+ARG UID=1000
+ARG GID=1000
+ARG COMFYUI_VERSION=v0.3.70
+ARG MANAGER_COMMIT=ff335ff1a0aca9e836a3291d85e21062919474a5
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_PREFER_BINARY=1 \
+    ROOT=/app \
+    LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" \
+    PYTHONUNBUFFERED=1 \
+    CLI_ARGS="--listen 0.0.0.0" \
+    PATH="/app:/usr/local/cuda/bin:${PATH}" \
+    CUDA_HOME="/usr/local/cuda" \
+    TORCH_CUDA_ARCH_LIST="9.0"
+
+WORKDIR ${ROOT}
+
+RUN --mount=type=cache,target=/var/cache/apt \
+    groupadd -g ${GID} comfyui && \
+    useradd -u ${UID} -g ${GID} -m -s /bin/bash comfyui && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        libgl1-mesa-glx \
+        libglib2.0-0 \
+        python3-dev \
+        gcc g++ \
+        build-essential \
+        cmake && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN git clone --branch ${COMFYUI_VERSION} --depth 1 \
+    https://github.com/comfyanonymous/ComfyUI.git .
+
+# Install PyTorch with explicit CUDA version to anchor the baseline
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir \
+        torch==2.8.0+cu129 \
+        torchvision==0.23.0+cu129 \
+        torchaudio==2.8.0+cu129 \
+        --extra-index-url https://download.pytorch.org/whl/cu129
+
+# Install ComfyUI dependencies from requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
+
+# Capture package baseline (ground truth before Manager installation)
+RUN pip freeze > /app/.package_baseline.txt && \
+    chmod 444 /app/.package_baseline.txt
+
+# Install ComfyUI-Manager at specific commit
+RUN cd custom_nodes && \
+    git clone https://github.com/Comfy-Org/ComfyUI-Manager.git ComfyUI-Manager && \
+    cd ComfyUI-Manager && \
+    git checkout ${MANAGER_COMMIT}
+
+# Install SageAttention (requires --no-build-isolation per upstream docs)
+RUN pip install --no-cache-dir sageattention==2.2.0 --no-build-isolation
+
+# Create package enforcement script
+RUN cat > /app/enforce_baseline.py <<'EOF'
+#!/usr/bin/env python3
+"""Enforces package baseline by detecting and reverting dependency violations."""
+import subprocess
+import sys
+
+def get_installed_versions():
+    """Returns dict of currently installed packages: {name: version}"""
+    result = subprocess.run(['pip', 'freeze'], capture_output=True, text=True, check=True)
+    return {line.split('==')[0].lower(): line.split('==')[1] 
+            for line in result.stdout.strip().split('\n') 
+            if '==' in line}
+
+def get_baseline_versions():
+    """Returns dict of baseline packages from ground truth: {name: version}"""
+    with open('/app/.package_baseline.txt', 'r') as f:
+        return {line.split('==')[0].lower(): line.split('==')[1] 
+                for line in f.read().strip().split('\n') 
+                if '==' in line}
+
+baseline = get_baseline_versions()
+installed = get_installed_versions()
+
+violations = []
+for pkg, baseline_ver in baseline.items():
+    if pkg in installed and installed[pkg] != baseline_ver:
+        violations.append((pkg, baseline_ver, installed[pkg]))
+
+if violations:
+    print("Package violations detected. Restoring baseline...")
+    for pkg, correct_ver, wrong_ver in violations:
+        print(f"  {pkg}: {wrong_ver} -> {correct_ver}")
+        subprocess.run(['pip', 'install', f'{pkg}=={correct_ver}'], 
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print("Baseline restored.")
+else:
+    print("Package baseline intact.")
+EOF
+
+RUN chmod +x /app/enforce_baseline.py
+
+RUN git config --global --add safe.directory /app && \
+    git config --global --add safe.directory /app/custom_nodes/ComfyUI-Manager && \
+    chown -R comfyui:comfyui ${ROOT} && \
+    chmod +x ${ROOT}/*.py && \
+    mkdir -p /cluster/tufts /cluster/home
+
+USER comfyui
+
+CMD ["sh", "-c", "python3 /app/enforce_baseline.py && trap 'python3 /app/enforce_baseline.py' EXIT && python3 ${ROOT}/main.py $CLI_ARGS"]
