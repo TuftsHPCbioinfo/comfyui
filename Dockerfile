@@ -89,11 +89,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ----------------------------------------------------------------------
 # 8️⃣ Extra GPU extensions
 # ----------------------------------------------------------------------
-ENV TORCH_CUDA_ARCH_LIST="9.0"
-RUN pip install --no-cache-dir \
-        ninja setuptools wheel && \
-    pip install --no-cache-dir \
-        git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation 
+#ENV TORCH_CUDA_ARCH_LIST="9.0"
+#RUN pip install --no-cache-dir \
+#        ninja setuptools wheel && \
+#    pip install --no-cache-dir \
+#        git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation 
 
 # ----------------------------------------------------------------------
 # 9️⃣ Git safe directories (needed for Manager)
