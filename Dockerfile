@@ -89,6 +89,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ----------------------------------------------------------------------
 # 8️⃣ Extra GPU extensions
 # ----------------------------------------------------------------------
+ENV TORCH_CUDA_ARCH_LIST="9.0"
 RUN pip install --no-cache-dir \
         ninja setuptools wheel && \
     pip install --no-cache-dir \
