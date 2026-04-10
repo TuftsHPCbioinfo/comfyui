@@ -5,7 +5,7 @@ on:
 
 jobs:
   push-to-dockerhub:
-    runs-on: [self-hosted, m2]
+    runs-on: [self-hosted]
     permissions:
       packages: write
       contents: read
