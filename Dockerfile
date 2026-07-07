@@ -10,7 +10,7 @@ FROM pytorch/pytorch:2.9.0-cuda12.8-cudnn9-devel
 # ----------------------------------------------------------------------
 ARG UID=1000
 ARG GID=1000
-ARG COMFYUI_VERSION=v0.19.0
+ARG COMFYUI_VERSION=v0.27.0
 ARG COMFYUI_MANAGER_REPO=https://github.com/Comfy-Org/ComfyUI-Manager.git
 ARG NVDIFFRAST_REPO=https://github.com/NVlabs/nvdiffrast.git
 
